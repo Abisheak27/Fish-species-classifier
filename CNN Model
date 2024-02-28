@@ -1,0 +1,72 @@
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.callbacks import LearningRateScheduler
+import os
+
+# Define parameters
+image_size = (224, 224)
+batch_size = 32
+epochs = 10
+num_classes = len(os.listdir('/content/drive/MyDrive/Training'))
+
+# Data augmentation and preprocessing
+train_datagen = ImageDataGenerator(
+    rotation_range=20,
+    width_shift_range=0.2,
+    height_shift_range=0.2,
+    shear_range=0.2,
+    zoom_range=0.2,
+    horizontal_flip=True,
+    fill_mode='nearest'
+)
+
+validation_datagen = ImageDataGenerator()
+
+train_generator = train_datagen.flow_from_directory(
+    '/content/drive/MyDrive/Training',
+    target_size=image_size,
+    batch_size=batch_size,
+    class_mode='categorical',
+    subset='training'
+)
+
+validation_generator = validation_datagen.flow_from_directory(
+    '/content/drive/MyDrive/Training',
+    target_size=image_size,
+    batch_size=batch_size,
+    class_mode='categorical',
+    subset='validation'
+)
+
+# Use a pre-trained model as a feature extractor
+base_model = tf.keras.applications.VGG16(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+base_model.trainable = False
+
+model = keras.Sequential([
+    base_model,
+    layers.GlobalAveragePooling2D(),
+    layers.Dense(512, activation='relu'),
+    layers.Dropout(0.5),
+    layers.Dense(num_classes, activation='softmax')
+])
+
+# Compile the model with a learning rate scheduler
+def lr_scheduler(epoch, lr):
+    if epoch % 5 == 0 and epoch > 0:
+        lr = lr * 0.9
+    return lr
+
+model.compile(optimizer=tf.keras.optimizers.SGD(learning_rate=0.01),
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+
+# Train the model with a learning rate scheduler
+history = model.fit(train_generator,
+                    validation_data=validation_generator,
+                    epochs=epochs,
+                    callbacks=[LearningRateScheduler(lr_scheduler)])
+
+# Save the model
+model.save('/content/drive/MyDrive/fish_species_classifier.h5')
